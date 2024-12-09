@@ -1,0 +1,220 @@
+#include <algorithm>
+#include <cmath>
+#include <iostream>
+#include <vector>
+
+using Type = long long;
+const Type cEps = 0;
+const int cPrec = 1;
+
+struct Point {
+  Type x = 0;
+  Type y = 0;
+
+  Point() {}
+  Point(Type x, Type y) : x(x), y(y) {}
+
+  Point operator+(Point& a) const {
+    Point ans(x + a.x, y + a.y);
+    return ans;
+  }
+
+  Point operator-(Point& a) const {
+    Point ans(x - a.x, y - a.y);
+    return ans;
+  }
+};
+
+bool operator<(Point a, Point b) {
+  if (a.x < b.x) {
+    return true;
+  }
+  return a.x == b.x and a.y < b.y;
+}
+
+bool operator==(Point a, Point b) { return a.x == b.x and a.y == b.y; }
+
+bool operator<=(Point a, Point b) { return a < b or a == b; }
+
+bool operator>(Point a, Point b) { return !(a <= b); }
+
+bool operator>=(Point a, Point b) { return !(a < b); }
+
+Type Normp(Point a, Point b) { return a.x * b.x + a.y * b.y; }
+
+Type Crossp(Point a, Point b) { return a.x * b.y - a.y * b.x; }
+
+Type Module(Point a) { return sqrt(a.x * a.x + a.y * a.y); }
+
+void operator>>(std::istream& in, Point& a) { in >> a.x >> a.y; }
+
+void operator<<(std::ostream& out, Point a) {
+  out << a.x << ' ' << a.y << '\n';
+}
+
+struct Line {
+  Type a;
+  Type b;
+  Type c;
+
+  Line() {}
+  Line(Type a, Type b, Type c) : a(a), b(b), c(c) {}
+};
+
+Line MakeLine(Point a, Point b) {
+  Line ans(b.y - a.y, a.x - b.x, a.y * b.x - a.x * b.y);
+  return ans;
+}
+
+void operator<<(std::ostream& out, Line l) {
+  out << l.a << "x+" << l.b << "y+" << l.c << "=0\n";
+}
+
+Type Dist(Point a, Line l) {
+  return std::abs(a.x * l.a + a.y * l.b + l.c) / sqrt(l.a * l.a + l.b * l.b);
+}
+
+bool OnLine(Point a, Line l) {
+  return (std::abs(a.x * l.a + a.y * l.b + l.c) < cEps);
+}
+
+Point PerpPoint(Point a, Line l) {
+  Point ans(a);
+  ans.x += l.a / sqrt(l.a * l.a + l.b * l.b) * Dist(a, l);
+  ans.y += l.b / sqrt(l.a * l.a + l.b * l.b) * Dist(a, l);
+  if (OnLine(ans, l)) {
+    return ans;
+  }
+  ans.x = a.x - l.a / sqrt(l.a * l.a + l.b * l.b) * Dist(a, l);
+  ans.y = a.y - l.b / sqrt(l.a * l.a + l.b * l.b) * Dist(a, l);
+  return ans;
+}
+
+Type DistWithLimits(Point x, Point a, Point b) {
+  Line l = MakeLine(a, b);
+  Point h = PerpPoint(x, l);
+  if (Normp(h - a, b - a) < 0) {
+    return Module(x - a);
+  }
+  if (Normp(h - b, a - b) < 0) {
+    return Module(x - b);
+  }
+  return Dist(x, l);
+}
+
+bool OnSegm(Point a, Point b, Point c) {
+  Line l = MakeLine(b, c);
+  if (!OnLine(a, l)) {
+    return false;
+  }
+  if (Normp(b - a, b - c) < 0) {
+    return false;
+  }
+  return Normp(c - a, c - b) >= 0;
+}
+
+struct Circle {
+  Point o;
+  Type r = 0.0;
+
+  Circle() = default;
+  Circle(Point x, Type r) : o(x), r(r) {}
+  Circle(Type x, Type y, Type r) {
+    o.x = x;
+    o.y = y;
+    this->r = r;
+  }
+};
+
+void operator>>(std::istream& in, Circle& w) { in >> w.o.x >> w.o.y >> w.r; }
+
+bool IsNotIntersectionCircleLine(Circle w, Point a, Point b) {
+  return DistWithLimits(w.o, a, b) - w.r >= -cEps;
+}
+
+std::pair<Point, Point> IntersectionCircleLine(Circle w, Line l) {
+  std::pair<Point, Point> ans;
+  Type d = Dist(w.o, l);
+  Type length = sqrt(w.r * w.r - d * d);
+  Point rub(-l.b / sqrt(l.a * l.a + l.b * l.b) * length,
+            l.a / sqrt(l.a * l.a + l.b * l.b) * length);
+  Point osn = PerpPoint(w.o, l);
+  ans.first = osn + rub;
+  ans.second = osn - rub;
+  return ans;
+}
+
+std::pair<Point, Point> IntercectionCircles(Circle w1, Circle w2) {
+  Line l(2 * (w2.o.x - w1.o.x), 2 * (w2.o.y - w1.o.y),
+         Module(w1.o) * Module(w1.o) - Module(w2.o) * Module(w2.o) +
+             w2.r * w2.r - w1.r * w1.r);
+  return IntersectionCircleLine(w1, l);
+}
+
+std::pair<Point, Point> Touch(Circle w, Point a) {
+  Type rad = sqrt(Module(w.o - a) * Module(w.o - a) - w.r * w.r);
+  Circle w1(a, rad);
+  return IntercectionCircles(w, w1);
+}
+
+bool IsOnSegment(Point x, Point start, Point finish) {
+  return Normp(x - start, finish - start) >= 0 and
+         Normp(x - finish, start - finish) >= 0;
+}
+
+Type FunFunc(Point start, Point finish1, Circle w, Point start1, Point finish) {
+  Type ans = Module(finish1 - start) + Module(finish - start1);
+  ans += w.r * acos(Normp(finish1 - w.o, start1 - w.o) / Module(finish1 - w.o) /
+                    Module(start1 - w.o));
+  return ans;
+}
+
+bool Cmp(Point a, Point b) {
+  if (Crossp(a, b) == 0) {
+    return Module(a) < Module(b);
+  }
+  return Crossp(a, b) < 0;
+}
+
+int main() {
+  std::cout.precision(cPrec);
+  long long quantity;
+  std::cin >> quantity;
+  std::vector<Point> points(quantity);
+  for (long long i = 0; i < quantity; ++i) {
+    std::cin >> points[i];
+  }
+  Point mini = points[0];
+  for (long long i = 0; i < quantity; ++i) {
+    mini = std::min(mini, points[i]);
+  }
+  for (long long i = 0; i < quantity; ++i) {
+    points[i] = points[i] - mini;
+  }
+  std::sort(points.begin(), points.end(), Cmp);
+  std::vector<Point> ans;
+  ans.push_back(mini);
+  for (long long i = 1; i < quantity; ++i) {
+    while (ans.size() >= 2 and
+           Crossp(ans[ans.size() - 1] - ans[ans.size() - 2],
+                  (points[i] + mini) - ans[ans.size() - 1]) >= 0) {
+      ans.pop_back();
+    }
+    ans.push_back(points[i] + mini);
+  }
+  std::cout << ans.size() << '\n';
+  for (auto i : ans) {
+    std::cout << i;
+  }
+  ans.push_back(ans[0]);
+  long long square = 0;
+  for (size_t i = 0; i < ans.size() - 1; ++i) {
+    square += Crossp(ans[i], ans[i + 1]);
+  }
+  square = std::abs(square);
+  if (square % 2 == 0) {
+    std::cout << square / 2;
+  } else {
+    std::cout << square / 2 << ".5\n";
+  }
+}
